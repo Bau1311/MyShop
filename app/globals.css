@@ -1,26 +1,62 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+input[type="text"]::placeholder {
+  opacity: 0.75 !important; 
+  color: #4b5563 !important; 
+  font-weight: 500 !important;
+}
+
+input[type="text"]::-webkit-input-placeholder {
+  opacity: 0.75 !important;
+  color: #4b5563 !important;
+  font-weight: 500 !important;
+}
+
+input[type="text"]:-moz-placeholder {
+  opacity: 0.75 !important;
+  color: #4b5563 !important;
+  font-weight: 500 !important;
+}
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* --- CSS Tùy chỉnh cho Popup Modal --- */
+
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); 
+  z-index: 9999; 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  opacity: 1; 
+  transition: opacity 0.3s ease-out;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+
+.popup-content {
+  position: relative;
+
+  animation: modal-appear 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.7) translateY(-50px);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
