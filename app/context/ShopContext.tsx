@@ -1,37 +1,93 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+// ✅ ĐÚNG API URL
+const API_BASE_URL = 'http://localhost:8080/api';
+
+// ==================== TYPES ====================
+export interface VariantInfo {
+  variantId: number;
+  sku: string;
+  quantity: number;
+  attributesJson: string;
+  priceOverride: number | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface ImageInfo {
+  imageId: number;
+  imageUrl: string;
+  isPrimary: boolean;
+  sortOrder: number;
+}
+
+export interface ProductDetailResponse {
+  productId: number;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  images: ImageInfo[];
+  variants: VariantInfo[];
+  reviews: any[];
+  totalReviews: number;
+}
+
+export interface CartItemResponse {
+  itemId: number;
+  variantId: number;
+  productId: number;
+  productName: string;
+  attributesJson: string;
+  quantity: number;
+  priceSnapshot: number;
+  discountSnapshot: number;
+  finalPrice: number;
+  lineTotal: number;
+}
+
+export interface CartDetailResponse {
+  cartId: number;
+  userId: number;
+  sessionId: string;
+  isActive: boolean;
+  currency: string;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  items: CartItemResponse[];
+  totalAmount: number;
+}
+
+// ==================== SHOP CONTEXT TYPES ====================
 type Product = {
   id: number;
   name: string;
   price: number;
   image?: string;
-  images?: string[];
-  description?: string;
   quantity?: number;
-  selectedColor?: string | null;
-  selectedSize?: string | null;
-  category?: string;
-  colors?: string[];
-  sizes?: string[];
+  variantId?: number;
+  selectedVariant?: VariantInfo;
 };
 
 type CartItem = {
-  id: number;
-  name: string;
+  itemId: number;
+  variantId: number;
+  productId: number;
+  productName: string;
   price: number;
-  image?: string;
-  images?: string[];
-  description?: string;
   quantity: number;
-  selectedColor?: string | null;
-  selectedSize?: string | null;
-  category?: string;
-  colors?: string[];
-  sizes?: string[];
+  attributesJson: string;
+  lineTotal: number;
+  image?: string;
 };
 
 type User = {
+  userId?: number;
   username?: string;
   name?: string;
   email?: string;
@@ -39,49 +95,44 @@ type User = {
   gender?: string;
   birthday?: string;
   avatar?: string | null;
+  role?: string;
+  status?: string;
 };
 
 type Order = {
   id: string;
   orderNumber: string;
   date: string;
-  status: "pending" | "processing" | "shipping" | "completed" | "cancelled";
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'canceled';
   items: CartItem[];
   totalAmount: number;
-  customerInfo: {
-    fullName: string;
-    phone: string;
-    email: string;
-    address: string;
-    city: string;
-    district: string;
-    ward: string;
-    note?: string;
-  };
-  paymentMethod: "cod" | "banking";
+  customerInfo: any;
+  paymentMethod: 'cod' | 'banking';
+  subtotal?: number;
+  shippingFee?: number;
+  discount?: number;
 };
 
 interface ShopContextProps {
   user: User | null;
   setUser: (u: User | null) => void;
-  updateUser: (userData: Partial<User>) => Promise<boolean>;
   cart: CartItem[];
-  addToCart: (p: Product) => void;
-  removeFromCart: (id: number, color?: string | null, size?: string | null) => void;
-  clearCart: () => void;
-  updateQuantity: (id: number, quantity: number, color?: string | null, size?: string | null) => void;
-  decreaseQuantity: (id: number, color?: string | null, size?: string | null) => void;
+  addToCart: (p: Product) => Promise<void>;
+  removeFromCart: (variantId: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  updateQuantity: (variantId: number, quantity: number) => Promise<void>;
+  decreaseQuantity: (variantId: number) => Promise<void>;
   isInitialized: boolean;
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
-  addOrder: (order: Omit<Order, "id" | "orderNumber" | "date">) => string;
-  getOrderById: (id: string) => Order | undefined;
-  cancelOrder: (id: string) => void;
   selectedProduct: Product | null;
   setSelectedProduct: (p: Product | null) => void;
-  products: Product[];
   buyNowItem: CartItem | null;
   setBuyNowItem: (item: CartItem | null) => void;
+  loadCartFromAPI: () => Promise<void>;
+  getProductById: (id: number) => Promise<ProductDetailResponse | null>;
+  selectedCartItems: Set<number>;
+  setSelectedCartItems: (items: Set<number>) => void;
 }
 
 const ShopContext = createContext<ShopContextProps | undefined>(undefined);
@@ -93,66 +144,20 @@ export const ShopProvider = ({ children }: { children: React.ReactNode }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [buyNowItem, setBuyNowItem] = useState<CartItem | null>(null);
-
-  const [products] = useState<Product[]>([
-    {
-      id: 1,
-      name: "Áo thun",
-      price: 120000,
-      image: "/images/banner1.jpg",
-      description: "Áo thun cotton thoáng mát, dễ phối đồ.",
-    },
-    {
-      id: 2,
-      name: "Giày Sneaker",
-      price: 450000,
-      image: "/images/banner2.jpg",
-      description: "Giày thể thao năng động, mang êm chân.",
-    },
-    {
-      id: 3,
-      name: "Tai nghe Bluetooth",
-      price: 250000,
-      image: "/images/banner3.jpg",
-      description: "Tai nghe không dây, pin lâu, âm thanh rõ nét.",
-    },
-    {
-      id: 4,
-      name: "Balo học sinh",
-      price: 190000,
-      image: "/images/banner1.jpg",
-      description: "Balo chống nước, nhiều ngăn tiện lợi.",
-    },
-    {
-      id: 5,
-      name: "Áo khoác",
-      price: 350000,
-      image: "/images/banner2.jpg",
-      description: "Áo khoác giữ ấm, phù hợp cả đi học và đi chơi.",
-    },
-  ]);
+  const [selectedCartItems, setSelectedCartItems] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const savedUser = localStorage.getItem("user");
-    const savedCart = localStorage.getItem("cart");
     const savedOrders = localStorage.getItem("orders");
-    const savedSelected = localStorage.getItem("selectedProduct");
 
     if (savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
       } catch {
         localStorage.removeItem("user");
-      }
-    }
-
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch {
-        localStorage.removeItem("cart");
       }
     }
 
@@ -164,23 +169,16 @@ export const ShopProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
-    if (savedSelected) {
-      try {
-        setSelectedProduct(JSON.parse(savedSelected));
-      } catch {
-        localStorage.removeItem("selectedProduct");
-      }
-    }
-
     setIsInitialized(true);
   }, []);
 
   useEffect(() => {
-    if (!isInitialized) return;
-    if (selectedProduct)
-      localStorage.setItem("selectedProduct", JSON.stringify(selectedProduct));
-    else localStorage.removeItem("selectedProduct");
-  }, [selectedProduct, isInitialized]);
+    if (user?.userId) {
+      loadCartFromAPI();
+    } else {
+      setCart([]);
+    }
+  }, [user?.userId]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -190,26 +188,48 @@ export const ShopProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (cart.length > 0) localStorage.setItem("cart", JSON.stringify(cart));
-    else localStorage.removeItem("cart");
-  }, [cart, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
     if (orders.length > 0) localStorage.setItem("orders", JSON.stringify(orders));
     else localStorage.removeItem("orders");
   }, [orders, isInitialized]);
 
-  const updateUser = async (userData: Partial<User>): Promise<boolean> => {
+  const loadCartFromAPI = async () => {
+    const cartId = localStorage.getItem('cartId');
+    if (!cartId) {
+      return;
+    }
+
     try {
-      setUser((prev) => (prev ? { ...prev, ...userData } : null));
-      return true;
-    } catch {
-      return false;
+      const response = await fetch(`${API_BASE_URL}/cart/${cartId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load cart');
+      }
+
+      const data: CartDetailResponse = await response.json();
+
+      const cartItems: CartItem[] = data.items.map(item => ({
+        itemId: item.itemId,
+        variantId: item.variantId,
+        productId: item.productId,
+        productName: item.productName,
+        price: item.priceSnapshot,
+        quantity: item.quantity,
+        attributesJson: item.attributesJson,
+        lineTotal: item.priceSnapshot * item.quantity, // Recalculate to ensure accuracy
+      }));
+
+      setCart(cartItems);
+    } catch (error) {
+      console.error("❌ Lỗi khi load giỏ hàng:", error);
     }
   };
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
     if (!user) {
       if (typeof window !== "undefined") {
         const confirm = window.confirm(
@@ -220,117 +240,118 @@ export const ShopProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    setCart((prev) => {
-      const existing = prev.find(
-        (item) =>
-          item.id === product.id &&
-          item.selectedColor === product.selectedColor &&
-          item.selectedSize === product.selectedSize
-      );
+    const cartId = localStorage.getItem('cartId');
 
-      let newCart;
-      if (existing) {
-        newCart = prev.map((item) =>
-          item.id === product.id &&
-          item.selectedColor === product.selectedColor &&
-          item.selectedSize === product.selectedSize
-            ? { ...item, quantity: item.quantity + (product.quantity || 1) }
-            : item
-        );
-      } else {
-        newCart = [
-          ...prev,
-          {
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            image: product.image,
-            images: product.images,
-            description: product.description,
-            quantity: product.quantity || 1,
-            selectedColor: product.selectedColor,
-            selectedSize: product.selectedSize,
-            category: product.category,
-            colors: product.colors,
-            sizes: product.sizes,
-          },
-        ];
+    if (!cartId) {
+      alert("Không tìm thấy giỏ hàng. Vui lòng đăng nhập lại!");
+      return;
+    }
+
+    if (!product.variantId) {
+      alert("Vui lòng chọn phiên bản sản phẩm");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/cart/${cartId}/add`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          variantId: product.variantId,
+          quantity: product.quantity || 1,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AddToCart] Error:', errorText);
+        throw new Error(errorText || 'Không thể thêm vào giỏ hàng');
       }
+
+      const data: CartDetailResponse = await response.json();
+
+      const cartItems: CartItem[] = data.items.map(item => ({
+        itemId: item.itemId,
+        variantId: item.variantId,
+        productId: item.productId,
+        productName: item.productName,
+        price: item.priceSnapshot,
+        quantity: item.quantity,
+        attributesJson: item.attributesJson,
+        lineTotal: item.lineTotal,
+      }));
+
+      setCart(cartItems);
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("cart", JSON.stringify(newCart));
+        alert("Đã thêm vào giỏ hàng!");
       }
-
-      return newCart;
-    });
+    } catch (error: any) {
+      console.error("❌ [AddToCart] Exception:", error);
+      alert(error.message || "Không thể thêm vào giỏ hàng");
+    }
   };
 
-  const updateQuantity = (id: number, quantity: number, color?: string | null, size?: string | null) => {
+  const updateQuantity = async (variantId: number, quantity: number) => {
     if (quantity < 1) return;
-    setCart((prev) =>
-      prev.map((item) =>
-        item.id === id &&
-        item.selectedColor === color &&
-        item.selectedSize === size
-          ? { ...item, quantity }
-          : item
-      )
-    );
-  };
 
-  const decreaseQuantity = (id: number, color?: string | null, size?: string | null) => {
-    setCart((prev) =>
-      prev
-        .map((item) =>
-          item.id === id &&
-          item.selectedColor === color &&
-          item.selectedSize === size
-            ? { ...item, quantity: item.quantity - 1 }
+    try {
+      // Update cart locally - calculate lineTotal with current price
+      setCart(prevCart =>
+        prevCart.map(item =>
+          item.variantId === variantId
+            ? { ...item, quantity, lineTotal: item.price * quantity }
             : item
         )
-        .filter((item) => item.quantity > 0)
-    );
+      );
+    } catch (error: any) {
+      console.error("Lỗi khi cập nhật số lượng:", error);
+      alert(error.message || "Không thể cập nhật số lượng");
+    }
   };
 
-  const removeFromCart = (id: number, color?: string | null, size?: string | null) => {
-    setCart((prev) =>
-      prev.filter(
-        (item) =>
-          !(
-            item.id === id &&
-            item.selectedColor === color &&
-            item.selectedSize === size
-          )
-      )
-    );
+  const decreaseQuantity = async (variantId: number) => {
+    const item = cart.find((i) => i.variantId === variantId);
+    if (!item) return;
+
+    if (item.quantity <= 1) {
+      await removeFromCart(variantId);
+    } else {
+      await updateQuantity(variantId, item.quantity - 1);
+    }
   };
 
-  const clearCart = () => {
+  const removeFromCart = async (variantId: number) => {
+    const cartId = localStorage.getItem('cartId');
+    if (!cartId) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/cart/${cartId}/remove/${variantId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Không thể xóa sản phẩm');
+      }
+
+      await loadCartFromAPI();
+    } catch (error: any) {
+      console.error("Lỗi khi xóa sản phẩm:", error);
+      alert(error.message || "Không thể xóa sản phẩm");
+    }
+  };
+
+  const clearCart = async () => {
     setCart([]);
   };
-
-  const addOrder = (orderData: Omit<Order, "id" | "orderNumber" | "date">): string => {
-    const orderId = `ORD${Date.now()}`;
-    const orderNumber = `#${Math.floor(100000 + Math.random() * 900000)}`;
-    const newOrder: Order = {
-      ...orderData,
-      id: orderId,
-      orderNumber,
-      date: new Date().toISOString(),
-    };
-    setOrders((prev) => [newOrder, ...prev]);
-    return orderId;
-  };
-
-  const getOrderById = (id: string): Order | undefined =>
-    orders.find((order) => order.id === id);
-
-  const cancelOrder = (id: string) => {
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === id ? { ...order, status: "cancelled" } : order
-      )
-    );
+  const getProductById = async (id: number): Promise<ProductDetailResponse | null> => {
+    const { productApiService } = await import('@/app/services/productApi');
+    return productApiService.getProductById(id);
   };
 
   return (
@@ -338,7 +359,6 @@ export const ShopProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         user,
         setUser,
-        updateUser,
         cart,
         addToCart,
         removeFromCart,
@@ -348,14 +368,14 @@ export const ShopProvider = ({ children }: { children: React.ReactNode }) => {
         isInitialized,
         orders,
         setOrders,
-        addOrder,
-        getOrderById,
-        cancelOrder,
         selectedProduct,
         setSelectedProduct,
-        products,
         buyNowItem,
         setBuyNowItem,
+        loadCartFromAPI,
+        getProductById,
+        selectedCartItems,
+        setSelectedCartItems,
       }}
     >
       {children}

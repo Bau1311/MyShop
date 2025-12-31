@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import AccountSidebar from '../../components/AccountSidebar';
 
 export default function ProfilePage() {
-  const { user, updateUser } = useShop();
+  const { user, setUser } = useShop();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState({
     username: '',
     name: '',
@@ -94,27 +94,25 @@ export default function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
-    const success = await updateUser({
+    // Update user in context
+    setUser({
+      ...user,
       ...formData,
       avatar: avatarPreview,
     });
 
-    if (success) {
-      setIsEditing({
-        phone: false,
-        birthday: false,
-      });
+    setIsEditing({
+      phone: false,
+      birthday: false,
+    });
 
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    } else {
-      alert('Có lỗi xảy ra khi lưu thông tin!');
-    }
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 3000);
   };
 
   if (!user) {
@@ -135,7 +133,7 @@ export default function ProfilePage() {
 
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
+
           {/* SIDEBAR - SỬ DỤNG COMPONENT MỚI */}
           <div className="lg:col-span-1">
             <AccountSidebar user={user} avatarPreview={avatarPreview} />
@@ -153,7 +151,7 @@ export default function ProfilePage() {
                 {/* FORM */}
                 <div className="lg:col-span-2">
                   <form onSubmit={handleSubmit} className="space-y-6">
-                    
+
                     <div className="flex items-start">
                       <label className="w-32 text-right pr-6 text-gray-600 pt-2">Tên đăng nhập</label>
                       <div className="flex-1">
@@ -172,10 +170,9 @@ export default function ProfilePage() {
                         <input
                           type="text"
                           value={formData.name}
-                          onChange={(e) => setFormData({...formData, name: e.target.value})}
-                          className={`w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                            errors.name ? 'border-red-500' : 'border-gray-300'
-                          }`}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          className={`w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
+                            }`}
                         />
                         {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
                       </div>
@@ -201,15 +198,14 @@ export default function ProfilePage() {
                           <input
                             type="tel"
                             value={formData.phone}
-                            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             disabled={!isEditing.phone}
-                            className={`flex-1 px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                              isEditing.phone ? 'border-gray-300' : 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                            } ${errors.phone ? 'border-red-500' : ''}`}
+                            className={`flex-1 px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500 ${isEditing.phone ? 'border-gray-300' : 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                              } ${errors.phone ? 'border-red-500' : ''}`}
                           />
                           <button
                             type="button"
-                            onClick={() => setIsEditing({...isEditing, phone: !isEditing.phone})}
+                            onClick={() => setIsEditing({ ...isEditing, phone: !isEditing.phone })}
                             className="text-blue-600 hover:text-blue-700 text-sm whitespace-nowrap font-medium"
                           >
                             {isEditing.phone ? 'Hủy' : 'Thay Đổi'}
@@ -228,7 +224,7 @@ export default function ProfilePage() {
                             name="gender"
                             value="male"
                             checked={formData.gender === 'male'}
-                            onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                             className="w-4 h-4 text-orange-500 focus:ring-orange-500"
                           />
                           <span className="text-gray-700">Nam</span>
@@ -239,7 +235,7 @@ export default function ProfilePage() {
                             name="gender"
                             value="female"
                             checked={formData.gender === 'female'}
-                            onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                             className="w-4 h-4 text-orange-500 focus:ring-orange-500"
                           />
                           <span className="text-gray-700">Nữ</span>
@@ -250,7 +246,7 @@ export default function ProfilePage() {
                             name="gender"
                             value="other"
                             checked={formData.gender === 'other'}
-                            onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                             className="w-4 h-4 text-orange-500 focus:ring-orange-500"
                           />
                           <span className="text-gray-700">Khác</span>
@@ -265,15 +261,14 @@ export default function ProfilePage() {
                           <input
                             type="date"
                             value={formData.birthday}
-                            onChange={(e) => setFormData({...formData, birthday: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
                             disabled={!isEditing.birthday}
-                            className={`flex-1 px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                              isEditing.birthday ? 'border-gray-300' : 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                            } ${errors.birthday ? 'border-red-500' : ''}`}
+                            className={`flex-1 px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500 ${isEditing.birthday ? 'border-gray-300' : 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                              } ${errors.birthday ? 'border-red-500' : ''}`}
                           />
                           <button
                             type="button"
-                            onClick={() => setIsEditing({...isEditing, birthday: !isEditing.birthday})}
+                            onClick={() => setIsEditing({ ...isEditing, birthday: !isEditing.birthday })}
                             className="text-blue-600 hover:text-blue-700 text-sm whitespace-nowrap font-medium"
                           >
                             {isEditing.birthday ? 'Hủy' : 'Thay Đổi'}
@@ -322,7 +317,7 @@ export default function ProfilePage() {
                     Chọn Ảnh
                   </button>
                   <p className="text-xs text-gray-500 mt-3 text-center">
-                    Dung lượng file tối đa 1 MB<br/>
+                    Dung lượng file tối đa 1 MB<br />
                     Định dạng: .JPEG, .PNG
                   </p>
                 </div>

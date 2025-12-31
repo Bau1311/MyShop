@@ -7,13 +7,13 @@ import Link from 'next/link';
 export default function OrdersPage() {
   const { user, isInitialized, orders, setOrders } = useShop();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'processing' | 'shipping' | 'completed' | 'cancelled'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'canceled'>('all');
 
   // ✅ Thêm hàm hủy đơn hàng (có lưu vào localStorage riêng từng user)
   const handleCancelOrder = (orderId: string) => {
     if (!confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) return;
     const updatedOrders = orders.map(order =>
-      order.id === orderId ? { ...order, status: "cancelled" as const } : order
+      order.id === orderId ? { ...order, status: "canceled" as const } : order
     );
     setOrders(updatedOrders);
     if (user?.email) {
@@ -27,14 +27,67 @@ export default function OrdersPage() {
       router.push('/login');
       return;
     }
-    const saved = localStorage.getItem(`orders_${user.email}`);
-    if (saved) {
+
+    // 🔥 Fetch orders from backend API instead of localStorage
+    const fetchOrders = async () => {
       try {
-        setOrders(JSON.parse(saved));
-      } catch (err) {
-        console.error('Lỗi khi đọc đơn hàng:', err);
+        if (!user.userId) {
+          console.error('User ID is missing');
+          return;
+        }
+
+        const { orderApi } = await import('@/app/services/cartApi');
+        const ordersData = await orderApi.getUserOrders(user.userId);
+
+        // Transform backend response to match frontend Order type
+        const transformedOrders = ordersData.map((order: any) => {
+          return {
+            id: order.orderId.toString(),
+            orderNumber: order.orderNumber,
+            date: order.createdAt,
+            status: order.status.toLowerCase(),
+            totalAmount: Number(order.grandTotal),
+            subtotal: Number(order.subtotal || 0),
+            shippingFee: Number(order.shippingFee || 0),
+            discount: Number(order.discountTotal || 0),
+            paymentMethod: 'cod' as const, // Type assertion
+            items: order.items?.map((item: any) => ({
+              id: item.orderItemId.toString(),
+              name: item.productName,
+              price: Number(item.unitPrice),
+              quantity: item.quantity,
+              image: '📦', // Default emoji, can be enhanced later
+            })) || [],
+            customerInfo: {
+              fullName: order.recipientName || (user as any).fullName || user.username || 'User',
+              phone: order.phone || (user as any).phone || '',
+              email: user.email || '',
+              address: order.street || '',
+              ward: order.ward || '',
+              district: order.district || '',
+              city: order.city || '',
+              note: order.note || '',
+            },
+          };
+        });
+
+
+        setOrders(transformedOrders);
+      } catch (error) {
+        console.error('Failed to fetch orders:', error);
+        // Fallback to localStorage if API fails
+        const saved = localStorage.getItem(`orders_${user.email}`);
+        if (saved) {
+          try {
+            setOrders(JSON.parse(saved));
+          } catch (err) {
+            console.error('Lỗi khi đọc đơn hàng:', err);
+          }
+        }
       }
-    }
+    };
+
+    fetchOrders();
   }, [user, isInitialized, router, setOrders]);
 
   // Loading khi đang khởi tạo
@@ -69,9 +122,9 @@ export default function OrdersPage() {
   const statusLabels = {
     pending: { label: 'Chờ xác nhận', color: 'bg-yellow-100 text-yellow-800' },
     processing: { label: 'Đang xử lý', color: 'bg-blue-100 text-blue-800' },
-    shipping: { label: 'Đang giao', color: 'bg-blue-100 text-blue-800' },
-    completed: { label: 'Đã giao', color: 'bg-green-100 text-green-800' },
-    cancelled: { label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
+    shipped: { label: 'Đang giao', color: 'bg-purple-100 text-purple-800' },
+    delivered: { label: 'Đã giao', color: 'bg-green-100 text-green-800' },
+    canceled: { label: 'Đã hủy', color: 'bg-red-100 text-red-800' },
   };
 
   return (
@@ -177,23 +230,22 @@ export default function OrdersPage() {
               {/* Tabs */}
               <div className="border-b">
                 <div className="flex gap-8 px-6 pt-4 overflow-x-auto">
-                  {['all', 'pending', 'processing', 'shipping', 'completed', 'cancelled'].map(tab => (
+                  {['all', 'pending', 'processing', 'shipped', 'delivered', 'canceled'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab as any)}
-                      className={`pb-3 whitespace-nowrap ${
-                        activeTab === tab
-                          ? 'text-orange-500 border-b-2 border-orange-500 font-medium'
-                          : 'text-gray-600 hover:text-orange-500'
-                      }`}
+                      className={`pb-3 whitespace-nowrap ${activeTab === tab
+                        ? 'text-orange-500 border-b-2 border-orange-500 font-medium'
+                        : 'text-gray-600 hover:text-orange-500'
+                        }`}
                     >
                       {{
                         all: 'Tất cả',
                         pending: 'Chờ xác nhận',
                         processing: 'Đang xử lý',
-                        shipping: 'Đang giao',
-                        completed: 'Đã giao',
-                        cancelled: 'Đã hủy',
+                        shipped: 'Đang giao',
+                        delivered: 'Đã giao',
+                        canceled: 'Đã hủy',
                       }[tab]}
                     </button>
                   ))}
@@ -202,25 +254,47 @@ export default function OrdersPage() {
 
               {/* Search */}
               <div className="p-6 border-b">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Tìm kiếm theo Tên Shop, ID đơn hàng hoặc Tên Sản phẩm"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
-                  />
-                  <svg
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm theo Tên Shop, ID đơn hàng hoặc Tên Sản phẩm"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
                     />
-                  </svg>
+                    <svg
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                    title="Làm mới danh sách"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Làm mới
+                  </button>
                 </div>
               </div>
 
@@ -287,13 +361,13 @@ export default function OrdersPage() {
                       {/* Items */}
                       <div className="space-y-3 mb-4">
                         {order.items.map(item => (
-                          <div key={item.id} className="flex items-center gap-4">
+                          <div key={item.itemId} className="flex items-center gap-4">
                             <div className="w-20 h-20 bg-orange-50 rounded-lg flex items-center justify-center text-3xl flex-shrink-0">
                               {item.image}
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="font-medium text-gray-800 truncate">
-                                {item.name}
+                                {item.productName}
                               </h4>
                               <p className="text-sm text-gray-500">
                                 Số lượng: x{item.quantity}
@@ -348,35 +422,54 @@ export default function OrdersPage() {
                       </div>
 
                       {/* Tổng tiền + nút */}
-                      <div className="flex items-center justify-between pt-4 border-t">
-                        <div className="flex gap-3">
-                          {order.status === 'pending' && (
-                            <button
-                              onClick={() => handleCancelOrder(order.id)}
-                              className="px-4 py-2 border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm"
-                            >
-                              Hủy đơn
-                            </button>
-                          )}
-                          {order.status === 'completed' && (
-                            <button
-                              onClick={() => router.push('/')}
-                              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm"
-                            >
-                              Mua lại
-                            </button>
-                          )}
-                          <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
-                            Liên hệ Shop
-                          </button>
+                      <div className="pt-4 border-t">
+                        {/* Price breakdown */}
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between text-gray-700">
+                              <span>Tạm tính:</span>
+                              <span>{((order as any).subtotal || 0).toLocaleString('vi-VN')}₫</span>
+                            </div>
+                            <div className="flex justify-between text-gray-700">
+                              <span>Phí vận chuyển:</span>
+                              <span>{((order as any).shippingFee || 0).toLocaleString('vi-VN')}₫</span>
+                            </div>
+                            {(order as any).discount > 0 && (
+                              <div className="flex justify-between text-green-600">
+                                <span>Giảm giá:</span>
+                                <span>-{((order as any).discount || 0).toLocaleString('vi-VN')}₫</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between font-bold text-orange-600 text-lg pt-2 border-t">
+                              <span>Tổng cộng:</span>
+                              <span>{(order.totalAmount || 0).toLocaleString('vi-VN')}₫</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600 mb-1">
-                            Tổng tiền:
-                          </p>
-                          <p className="text-2xl font-bold text-orange-600">
-                            {order.totalAmount.toLocaleString('vi-VN')}₫
-                          </p>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-3">
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={() => handleCancelOrder(order.id)}
+                                className="px-4 py-2 border border-red-500 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm"
+                              >
+                                Hủy đơn
+                              </button>
+                            )}
+                            {order.status === 'delivered' && (
+                              <button
+                                onClick={() => router.push('/')}
+                                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm"
+                              >
+                                Mua lại
+                              </button>
+                            )}
+                            <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                              Liên hệ Shop
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
