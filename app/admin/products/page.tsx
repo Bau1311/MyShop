@@ -9,10 +9,10 @@ interface Product {
     productId: number;
     name: string;
     price: number;
-    finalPrice: number;
     categoryName: string;
     status: string;
     totalPurchaseCount?: number | null;
+    totalStock?: number | null;
     imageUrl: string;
 }
 
@@ -123,7 +123,7 @@ export default function ProductsManagement() {
             {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
                     <p className="font-medium">Lỗi: {error}</p>
-                    <button 
+                    <button
                         onClick={loadProducts}
                         className="text-sm underline mt-1 hover:text-red-900"
                     >
@@ -163,22 +163,13 @@ export default function ProductsManagement() {
                                     src={product.imageUrl || '/placeholder-product.png'}
                                     alt={product.name}
                                     className="w-full h-48 object-cover"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).src = '/placeholder-product.png';
-                                    }}
                                 />
-                                {getDiscountPercent(product.price, product.finalPrice) > 0 && (
-                                    <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold">
-                                        -{getDiscountPercent(product.price, product.finalPrice)}%
-                                    </div>
-                                )}
                                 <div className="absolute top-2 left-2">
-                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                        product.status === 'ACTIVE' 
-                                            ? 'bg-green-100 text-green-800' 
-                                            : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                        {product.status === 'ACTIVE' ? 'Đang bán' : 'Ngừng bán'}
+                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${product.status === 'active'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                        }`}>
+                                        {product.status === 'active' ? 'Đang bán' : 'Ngừng bán'}
                                     </span>
                                 </div>
                             </div>
@@ -187,21 +178,15 @@ export default function ProductsManagement() {
                                     {product.name}
                                 </h3>
                                 <p className="text-xs text-gray-500 mb-2">{product.categoryName || 'Chưa phân loại'}</p>
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex flex-col">
-                                        <span className="text-orange-600 font-bold text-lg">
-                                            {formatNumber(product.finalPrice)}₫
-                                        </span>
-                                        {product.price > product.finalPrice && (
-                                            <span className="text-gray-400 text-sm line-through">
-                                                {formatNumber(product.price)}₫
-                                            </span>
-                                        )}
-                                    </div>
+                                <div className="mb-3">
+                                    <span className="text-orange-600 font-bold text-lg">
+                                        {formatNumber(product.price)}₫
+                                    </span>
                                 </div>
-                                <p className="text-sm text-gray-500 mb-3">
-                                    Đã bán: {formatNumber(product.totalPurchaseCount)}
-                                </p>
+                                <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
+                                    <span>Đã bán: {product.totalPurchaseCount || 0}</span>
+                                    <span>Tồn kho: {product.totalStock || 0}</span>
+                                </div>
                                 <div className="flex gap-2 mt-4">
                                     <Link
                                         href={`/admin/products/${product.productId}`}
@@ -210,6 +195,29 @@ export default function ProductsManagement() {
                                         <Edit className="w-4 h-4" />
                                         Sửa
                                     </Link>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const updatedProduct = await adminApi.toggleProductStatus(product.productId);
+                                                // Update local state instead of reloading
+                                                setProducts(prev => prev.map(p =>
+                                                    p.productId === product.productId
+                                                        ? { ...p, status: updatedProduct.status }
+                                                        : p
+                                                ));
+                                            } catch (error) {
+                                                console.error('Error toggling status:', error);
+                                                alert('Không thể thay đổi trạng thái');
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded text-sm transition-colors ${product.status === 'active'
+                                                ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                                                : 'bg-green-500 hover:bg-green-600 text-white'
+                                            }`}
+                                        title={product.status === 'active' ? 'Ngừng bán' : 'Bật bán'}
+                                    >
+                                        {product.status === 'active' ? 'Tắt' : 'Bật'}
+                                    </button>
                                     <button
                                         onClick={() => handleDelete(product.productId, product.name)}
                                         disabled={deleting === product.productId}

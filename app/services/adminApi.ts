@@ -149,43 +149,71 @@ export const toggleVoucher = async (voucherId: number) => {
 };
 
 // ==================== PRODUCT MANAGEMENT APIs ====================
-export const getProducts = async (page = 0, size = 100, search?: string) => {
-    try {
-        let data;
+export const getProducts = async (page = 0, size = 100, search?: string, status?: string) => {
+    const params = new URLSearchParams({
+        page: page.toString(),
+        size: size.toString(),
+        ...(search && { search }),
+        ...(status && { status }),
+    });
 
-        if (search && search.trim() !== '') {
-            // Search products
-            data = await fetchAPI(`/api/products/search?keyword=${encodeURIComponent(search.trim())}`);
-        } else {
-            // Get top products
-            data = await fetchAPI('/api/products/top');
-        }
-
-        // Format response to match pagination format
-        const products = Array.isArray(data) ? data : [];
-
-        return {
-            content: products,
-            totalPages: 1,
-            totalElements: products.length,
-            number: page,
-            size: size
-        };
-    } catch (error) {
-        console.error('Error fetching products:', error);
-        return {
-            content: [],
-            totalPages: 0,
-            totalElements: 0,
-            number: 0,
-            size: size
-        };
-    }
+    return fetchAPI(`/api/admin/products?${params}`);
 };
 
 export const deleteProduct = async (productId: number) => {
-    return fetchAPI(`/api/products/id/${productId}`, {
+    return fetchAPI(`/api/admin/products/${productId}`, {
         method: 'DELETE',
+    });
+};
+
+export const getProductDetail = async (productId: number) => {
+    return fetchAPI(`/api/admin/products/${productId}`);
+};
+
+export const createProduct = async (data: any) => {
+    return fetchAPI('/api/admin/products', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const updateProduct = async (productId: number, data: any) => {
+    return fetchAPI(`/api/admin/products/${productId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const uploadProductImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${API_BASE_URL}/api/admin/products/upload-image`;
+
+    const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header - browser will set it with boundary
+    });
+
+    if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status}`);
+    }
+
+    return response.json();
+};
+
+export const getCategories = async () => {
+    return fetchAPI('/api/admin/products/categories');
+};
+
+export const getBrands = async () => {
+    return fetchAPI('/api/admin/products/brands');
+};
+
+export const toggleProductStatus = async (productId: number) => {
+    return fetchAPI(`/api/admin/products/${productId}/toggle-status`, {
+        method: 'PATCH',
     });
 };
 
@@ -215,6 +243,13 @@ const adminApi = {
     // Products
     getProducts,
     deleteProduct,
+    getProductDetail,
+    createProduct,
+    updateProduct,
+    uploadProductImage,
+    getCategories,
+    getBrands,
+    toggleProductStatus,
 };
 
 export default adminApi;
